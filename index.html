@@ -15,7 +15,12 @@
       font-family: Arial, sans-serif;
       color: white;
       text-align: center;
-    }
+  touch-action: manipulation; /* disables double-tap zoom */
+  -webkit-user-select: none;  /* prevents text selection */
+  user-select: none;
+}
+
+    
 
     h1 {
       font-size: 48px;
@@ -309,6 +314,20 @@ function drawPlayer() {
       if (e.code === "Space") jump();
     });
 
+// --- Mobile touch support ---
+
+// Jump anywhere on screen tap
+canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault(); // prevent default scroll/zoom
+  jump();
+});
+
+// Optional: if you keep the button
+document.getElementById("jumpBtn")?.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  jump();
+});
+
 playerImg.onload = () => {
   gameLoop();
 };
@@ -316,4 +335,5 @@ playerImg.onload = () => {
   </script>
 </body>
 </html>
+
 
