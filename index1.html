@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tea-Fi Endless Runner</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      background: linear-gradient(to top, #6a11cb, #2575fc);
+      font-family: Arial, sans-serif;
+      color: white;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 48px;
+      margin: 15px 0;
+      font-weight: bold;
+      background: linear-gradient(270deg, #ff4e50, #f9d423, #4a90e2, #e91e63);
+      background-size: 800% 800%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 2px 2px 6px rgba(0,0,0,0.4);
+      animation: gradientFlow 8s ease infinite;
+    }
+
+    @keyframes gradientFlow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    canvas {
+      background: linear-gradient(to top, #87ceeb, #e0f7fa);
+      border: 3px solid #fff;
+      display: block;
+    }
+
+    #mobileControls {
+      margin-top: 10px;
+      display: flex;
+      gap: 15px;
+    }
+
+    button {
+      padding: 12px 25px;
+      font-size: 18px;
+      border: none;
+      border-radius: 12px;
+      background: #ff4e50;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+
+    button:hover {
+      background: #fc913a;
+    }
+
+    #gameOver {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.8);
+      padding: 20px;
+      border-radius: 15px;
+      display: none;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Tea-Fi Endless Runner</h1>
+  <canvas id="gameCanvas" width="1000" height="500"></canvas>
+  
+  <div id="mobileControls">
+    <button onclick="jump()">Jump ⬆️</button>
+  </div>
+
+  <div id="gameOver">
+    <h1>Game Over ❌</h1>
+    <p id="finalScore"></p>
+    <button onclick="restartGame()">Restart 🔄</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let playerImg = new Image();
+    playerImg.src = "myCharacter.png";
+
+    // Player
+    let player = { 
+      x: 80, 
+      y: 400, 
+      width: 50, 
+      height: 50, 
+      color: "#4CAF50", 
+      dy: 0, 
+      jumpPower: -14, 
+      gravity: 0.7, 
+      grounded: true,
+      jumps: 0, 
+      maxJumps: 2 
+    };
+
+    let obstacles = [];
+    let clouds = [];
+    let trails = [];
+    let gameSpeed = 6;
+    let score = 0;
+    let gameOver = false;
+    let frame = 0;
+    let bounceFrame = 0;
+
+
+function drawPlayer() {
+  if (playerImg.complete && playerImg.naturalHeight !== 0) {
+    // draw the image
+    ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+  } else {
+    // fallback cube
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+  }
+}
+
+
+    function drawObstacle(ob) {
+      ctx.fillStyle = ob.color;
+      ctx.beginPath();
+      ctx.moveTo(ob.x, ob.y);
+      ctx.lineTo(ob.x + ob.size, ob.y);
+      ctx.lineTo(ob.x + ob.size/2, ob.y - ob.height);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function updateObstacles() {
+      if (frame % 90 === 0) {
+        let count = Math.random() < 0.3 ? 2 : 1;
+        for (let i = 0; i < count; i++) {
+          let size = 30 + Math.random() * 40;
+          let height = 30 + Math.random() * 70;
+          let gap = i * (60 + Math.random() * 40);
+          obstacles.push({ 
+            x: canvas.width + gap, 
+            y: 450, 
+            size: size, 
+            height: height, 
+            color: randomColor() 
+          });
+        }
+      }
+
+      for (let i = 0; i < obstacles.length; i++) {
+        let ob = obstacles[i];
+        ob.x -= gameSpeed;
+        drawObstacle(ob);
+
+        if (player.x < ob.x + ob.size &&
+            player.x + player.width > ob.x &&
+            player.y + player.height > ob.y - ob.height) {
+          endGame();
+        }
+      }
+      obstacles = obstacles.filter(ob => ob.x + ob.size > 0);
+    }
+
+    function createCloud() {
+      let size = 50 + Math.random() * 50;
+      let y = 40 + Math.random() * 100;
+      clouds.push({ x: canvas.width, y: y, size: size, speed: 1 + Math.random() * 1.5 });
+    }
+
+    function updateClouds() {
+      if (frame % 150 === 0) createCloud();
+      for (let i = 0; i < clouds.length; i++) {
+        let c = clouds[i];
+        c.x -= c.speed;
+        drawCloud(c);
+      }
+      clouds = clouds.filter(c => c.x + c.size > 0);
+    }
+
+    function drawCloud(c) {
+      ctx.fillStyle = "white";
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.size * 0.4, Math.PI * 0.5, Math.PI * 1.5);
+      ctx.arc(c.x + c.size * 0.5, c.y - c.size * 0.4, c.size * 0.5, Math.PI * 1, Math.PI * 1.85);
+      ctx.arc(c.x + c.size, c.y, c.size * 0.4, Math.PI * 1.37, Math.PI * 1.91);
+      ctx.arc(c.x + c.size * 0.5, c.y + c.size * 0.2, c.size * 0.5, Math.PI * 1.5, Math.PI * 0.5);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function updateTrails() {
+      trails.push({ 
+  x: player.x, 
+  y: player.y + player.height*0.5, // position behind character
+  width: player.width * 0.8, 
+  height: player.height * 0.5, 
+  alpha: 0.5 
+});
+
+      for (let i = 0; i < trails.length; i++) {
+        let t = trails[i];
+       ctx.globalAlpha = t.alpha;
+       ctx.fillStyle = "rgba(255,0,153,1)"; // or use image if you want
+       ctx.fillRect(t.x, t.y, t.width, t.height);
+       ctx.globalAlpha = 1;
+
+        t.x -= 2; 
+        t.alpha -= 0.02;
+      }
+      trails = trails.filter(t => t.alpha > 0);
+    }
+
+    function updatePlayer() {
+      if (player.grounded) {
+        bounceFrame++;
+        player.y = 400 + Math.sin(bounceFrame * 0.2) * 4;
+      } else {
+        player.y += player.dy;
+        player.dy += player.gravity;
+        if (player.y + player.height >= 450) {
+          player.y = 400;
+          player.dy = 0;
+          player.grounded = true;
+          player.jumps = 0;
+        }
+      }
+      updateTrails();  
+      drawPlayer();   
+    }
+
+    function gameLoop() {
+      if (gameOver) return;
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+
+      ctx.fillStyle = "#87ceeb";
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+
+      updateClouds();
+
+      ctx.fillStyle = "#654321";
+      ctx.fillRect(0, 450, canvas.width, 50);
+
+      updatePlayer();
+      updateObstacles();
+
+      score++;
+      ctx.fillStyle = "black";
+      ctx.font = "20px Arial";
+      ctx.fillText("Score: " + score, 20, 30);
+
+      if (score % 500 === 0) {
+        gameSpeed += 0.4;
+      }
+
+      frame++;
+      requestAnimationFrame(gameLoop);
+    }
+
+    function jump() {
+      if (player.jumps < player.maxJumps) {
+        player.dy = player.jumpPower;
+        player.grounded = false;
+        player.jumps++;
+      }
+    }
+
+    function randomColor() {
+      const colors = ["#e6194b","#3cb44b","#ffe119","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6"];
+      return colors[Math.floor(Math.random()*colors.length)];
+    }
+
+    function endGame() {
+      gameOver = true;
+      document.getElementById("finalScore").innerText = "Your Score: " + score;
+      document.getElementById("gameOver").style.display = "block";
+    }
+
+    function restartGame() {
+      player.y = 400;
+      player.dy = 0;
+      player.jumps = 0;
+      obstacles = [];
+      clouds = [];
+      trails = [];
+      score = 0;
+      gameSpeed = 6;
+      frame = 0;
+      bounceFrame = 0;
+      gameOver = false;
+      document.getElementById("gameOver").style.display = "none";
+      gameLoop();
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "Space") jump();
+    });
+
+playerImg.onload = () => {
+  gameLoop();
+};
+
+  </script>
+</body>
+</html>
+
